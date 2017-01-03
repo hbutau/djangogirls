@@ -1,5 +1,8 @@
 # Django Girls website
 
+[![Build Status](https://travis-ci.org/DjangoGirls/djangogirls.svg?branch=master)](https://travis-ci.org/DjangoGirls/djangogirls) [![codecov](https://codecov.io/gh/DjangoGirls/djangogirls/branch/master/graph/badge.svg)](https://codecov.io/gh/DjangoGirls/djangogirls)
+
+
 This repository contains sources of Django application that powers [DjangoGirls.org](http://djangogirls.org/).
 
 ## What's in it?
@@ -53,7 +56,7 @@ To manage menu available on the website, you can add objects to EventPageMenu. A
 
 # Contributing to Django Girls website
 
-The website is hosted on PyhtonAnywhere and is available here: http://djangogirls.org/
+The website is hosted on PythonAnywhere and is available here: http://djangogirls.org/
 
 We have an auto-deploy thing going on, so everything commited to master is automatically deployed to our Heroku.
 
@@ -71,7 +74,22 @@ Create a new virtual environment if needed. Then, install all the required depen
 
     pip install -r requirements.txt
 
-Create your database:
+Start the [PostgreSQL database server](http://www.postgresql.org/docs/current/static/server-start.html) and enter the `psql` shell (you need to have [PostgreSQL](http://www.postgresql.org/download/) installed):
+
+    psql
+
+In the `psql` shell, create a database and a role with the necessary permissions:
+
+    CREATE DATABASE djangogirls;
+    CREATE ROLE postgres;
+    GRANT ALL privileges ON DATABASE djangogirls TO postgres;
+    ALTER ROLE postgres WITH LOGIN;
+
+Exit the `psql` shell:
+
+    \q
+
+Run the migration to create database schema:
 
     ./manage.py migrate
 
@@ -83,25 +101,53 @@ Create a user so you can login to the admin:
 
     ./manage.py createsuperuser
 
+Install dependencies for static files:
+
+    npm install
+
+Compile CSS and JS files:
+
+    gulp watch
+
 Run your local server:
 
      ./manage.py runserver
 
 :tada: You're done.
 
-### CSS processing
+
+## Run the tests
+
+You can run the tests like this:
+
+	py.test
+
+Or if you want coverage reports:
+
+	py.test --cov
+
+
+For a coverage report with information about missing lines, run this:
+
+	py.test --cov-report term-missing --cov
+
+### Static files
 
 We're using a [Stylus](http://learnboost.github.io/stylus/) as our CSS pre-processor. [Get styling with Stylus](http://learnboost.github.io/stylus/#get-styling-with-stylus).
 
-This means you shouldn't change any css files, but `.styl` files. They're in /static/css/ directory.
-
-Install stylus:
-
-    npm install stylus -g
+This means you shouldn't change any css files, but `.styl` files. They're in /static/source/css/ directory.
 
 Autocompiling of `.styl` files to `.css`:
 
-    stylus -w static/css
+    gulp watch
+
+We're also using gulp for our static files builds. To build static files for production, run this:
+
+    gulp build
+
+For local development:
+
+    gulp local
 
 
 ### Hosting on PythonAnywhere

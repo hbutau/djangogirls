@@ -1,15 +1,15 @@
 import random
 import string
 
-from django.core.validators import MaxValueValidator, MinValueValidator
 from django.core.mail import EmailMessage
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils import timezone
 from django.utils.encoding import python_2_unicode_compatible
 
 from core.models import EventPage, User
-from .utils import DEFAULT_QUESTIONS
 
+from .utils import DEFAULT_QUESTIONS
 
 QUESTION_TYPES = (
     ('paragraph', 'Paragraph'),
@@ -26,10 +26,14 @@ APPLICATION_STATES = (
     ('declined', 'Applicant declined'),
 )
 
+RSVP_WAITING = 'waiting'
+RSVP_YES = 'yes'
+RSVP_NO = 'no'
+
 RSVP_STATUSES = (
-    ('waiting', 'RSVP: Waiting for response'),
-    ('yes', 'RSVP: Confirmed attendance'),
-    ('no', 'RSVP: Rejected invitation')
+    (RSVP_WAITING, 'RSVP: Waiting for response'),
+    (RSVP_YES, 'RSVP: Confirmed attendance'),
+    (RSVP_NO, 'RSVP: Rejected invitation')
 
 )
 
@@ -38,7 +42,7 @@ RSVP_LINKS = ['[rsvp-url-yes]', '[rsvp-url-no]']
 
 @python_2_unicode_compatible
 class Form(models.Model):
-    page = models.ForeignKey(EventPage, null=False, blank=False)
+    page = models.OneToOneField(EventPage, null=False, blank=False)
     text_header = models.CharField(
         max_length=255, default="Apply for a spot at Django Girls [City]!")
     text_description = models.TextField(
@@ -149,10 +153,13 @@ class Application(models.Model):
     rsvp_status = models.CharField(
         max_length=50,
         choices=RSVP_STATUSES, verbose_name="RSVP status",
-        default='waiting'
+        default=RSVP_WAITING
     )
-    rsvp_yes_code = models.CharField(max_length=24, null=True)
-    rsvp_no_code = models.CharField(max_length=24, null=True)
+    rsvp_yes_code = models.CharField(max_length=24, null=True, blank=True)
+    rsvp_no_code = models.CharField(max_length=24, null=True, blank=True)
+
+    class Meta:
+        unique_together = ("form", "email")
 
     def save(self, *args, **kwargs):
         if self.pk is None:
@@ -207,11 +214,11 @@ class Application(models.Model):
         """ Returns application and RSVP status or None """
         try:
             application = self.objects.get(rsvp_yes_code=code, form__page=page)
-            return application, 'yes'
+            return application, RSVP_YES
         except self.DoesNotExist:
             try:
                 application = self.objects.get(rsvp_no_code=code, form__page=page)
-                return application, 'no'
+                return application, RSVP_NO
             except self.DoesNotExist:
                 return None, None
         return None, None
@@ -249,7 +256,7 @@ class Score(models.Model):
     application = models.ForeignKey(Application, related_name='scores')
     score = models.FloatField(
         help_text='5 being the most positive, 1 being the most negative.',
-        validators=[MaxValueValidator(5), MinValueValidator(0)], 
+        validators=[MaxValueValidator(5), MinValueValidator(0)],
         default=0
     )
     comment = models.TextField(

@@ -1,11 +1,15 @@
-from django import forms
-from django.template.loader import render_to_string
-from django.core.mail import EmailMessage
-from captcha.fields import ReCaptchaField
+import hashlib
 
-from .models import Application, Answer, Question, Score, Email
-from .utils import generate_form_from_questions
+import requests
+from django import forms
+from django.conf import settings
+from django.core.mail import EmailMessage
+from django.template.loader import render_to_string
+
 from core.forms import BetterReCaptchaField
+
+from .models import Answer, Application, Email, Question, Score
+from .utils import generate_form_from_questions
 
 
 class ApplicationForm(forms.Form):
@@ -14,23 +18,47 @@ class ApplicationForm(forms.Form):
         """
         The form here is programatically generated out of Question objects
         """
-
-        questions = kwargs.pop('questions')
+        self.form = kwargs.pop('form')
+        self.base_fields = generate_form_from_questions(
+            self.form.question_set.all())
+        self.base_fields.update({
+            'captcha': BetterReCaptchaField()
+        })
         super(ApplicationForm, self).__init__(*args, **kwargs)
-        self.fields = generate_form_from_questions(questions)
-        self.fields['captcha'] = BetterReCaptchaField()
 
+    def clean(self):
+        cleaned_data = self.cleaned_data
+        email = None
+        field_name = None
+
+        question = Question.objects.filter(form=self.form,
+                                           question_type='email').first()
+
+        if not question:
+            return cleaned_data
+
+        field_name = 'question_{}'.format(question.pk)
+        email = self.cleaned_data.get(field_name)
+
+        if email is not None:
+            if (Application.objects
+                    .filter(form=self.form, email=email)
+                    .exists()):
+                self.add_error(field_name,
+                               'Application for this e-mail already exists.')
+
+        # Always return cleaned_data
+        return cleaned_data
 
     def save(self, *args, **kwargs):
-        form = kwargs.pop('form')
-        application = Application.objects.create(form=form)
+        application = Application.objects.create(form=self.form)
 
         for name in self.cleaned_data:
             question = None
             pk = name.replace('question_', '')
             value = self.cleaned_data[name]
             try:
-                question = Question.objects.get(pk=pk, form=form)
+                question = Question.objects.get(pk=pk, form=self.form)
             except (Question.DoesNotExist, ValueError):
                 if name == 'newsletter_optin':
                     if value == 'yes':
@@ -52,29 +80,47 @@ class ApplicationForm(forms.Form):
                     application.email = value
                     application.save()
 
-        if not form.page.event.email:
+        if not self.form.page.event.email:
             # If event doesn't have an email (legacy events), create
             # it just by taking the url. In 99% cases, it is correct.
-            form.page.event.email = "{}@djangogirls.org".format(form.page.url)
-            form.page.event.save()
+            self.form.page.event.email = "{}@djangogirls.org".format(
+                self.form.page.url)
+            self.form.page.event.save()
 
         if application.email:
             # Send confirmation email
-            subject = "Confirmation of your application for {}".format(form.page.title)
+            subject = "Confirmation of your application for {}".format(
+                self.form.page.title)
             body = render_to_string(
                 'emails/application_confirmation.html',
                 {
                     'application': application,
-                    'intro': form.confirmation_mail,
+                    'intro': self.form.confirmation_mail,
                 }
             )
-            msg = EmailMessage(subject, body, form.page.event.email, [application.email,])
+            msg = EmailMessage(subject, body, self.form.page.event.email, [
+                               application.email, ])
             msg.content_subtype = "html"
             try:
                 msg.send()
             except:
                 # TODO: what should we do when sending fails?
                 pass
+
+        # Adding applicant email to Django Girls Dispatch
+        if application.newsletter_optin and application.email:
+            emailb = application.email.encode()
+            emailhash = hashlib.md5(emailb).hexdigest()
+            r = requests.get("https://us8.api.mailchimp.com/3.0/lists/d278270e6f/members/%s" %
+                             emailhash, auth=('user', settings.MAILCHIMP_API_KEY))
+            # Mailchimp will return a 404 if the email we want to add is not on
+            # the Dispatch subscriber list
+            if r.status_code == 404:
+                url = "https://us8.api.mailchimp.com/3.0/lists/d278270e6f/members/"
+                payload = {"email_address": application.email,
+                           "status": "pending"}
+                requests.post(url, auth=(
+                    'user', settings.MAILCHIMP_API_KEY), json=payload)
 
 
 class ScoreForm(forms.ModelForm):

@@ -1,16 +1,20 @@
 import csv
-from django.http import Http404, JsonResponse, HttpResponse
+
 from django.contrib import messages
-from django.shortcuts import render, redirect, get_object_or_404
+from django.http import Http404, HttpResponse, JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render
 from django.template.defaultfilters import striptags
 from django.views.decorators.csrf import csrf_exempt
 
-from core.utils import get_event_page
 from core.models import EventPageMenu
+from core.utils import get_event_page
+
 from .decorators import organiser_only
-from .models import Application, Form, Score, Question, Email
-from .forms import ApplicationForm, ScoreForm, EmailForm
-from .utils import get_applications_for_page, get_organiser_menu, random_application
+from .forms import ApplicationForm, EmailForm, ScoreForm
+from .models import (RSVP_WAITING, RSVP_YES, Application, Email, Form,
+                     Question, Score)
+from .utils import (get_applications_for_page, get_organiser_menu,
+                    random_application)
 
 
 def apply(request, city):
@@ -27,7 +31,8 @@ def apply(request, city):
     if form_obj is None:
         return redirect('core:event', city)
 
-    organiser = request.user in page.event.team.all() or request.user.is_superuser
+    organiser = (request.user in page.event.team.all()
+                 or request.user.is_superuser)
 
     if not organiser and not form_obj.application_open:
         return redirect('core:event', city)
@@ -35,12 +40,15 @@ def apply(request, city):
     menu = EventPageMenu.objects.filter(page=page)
 
     form = ApplicationForm(
-        request.POST or None, questions=form_obj.question_set.all()
+        request.POST or None, form=form_obj
     )
 
     if form.is_valid():
-        form.save(form=form_obj)
-        messages.success(request, "Yay! Your application has been saved. You'll hear from us soon!")
+        form.save()
+        messages.success(
+            request,
+            "Yay! Your application has been saved. You'll hear from us soon!"
+        )
 
         return render(request, 'applications/apply.html', {
             'page': page,
@@ -48,7 +56,8 @@ def apply(request, city):
             'form_obj': form_obj,
         })
 
-    number_of_email_questions = Question.objects.filter(question_type='email', form=form_obj).count()
+    number_of_email_questions = Question.objects.filter(
+        question_type='email', form=form_obj).count()
 
     return render(request, 'applications/apply.html', {
         'page': page,
@@ -71,9 +80,11 @@ def applications(request, city):
     rsvp_status = request.GET.getlist('rsvp_status', None)
     page = get_event_page(city, request.user.is_authenticated(), False)
     order = request.GET.get('order', None)
-    active_query_string = '?' + request.META.get('QUERY_STRING') if request.META.get('QUERY_STRING') else ''
+    active_query_string = '?' + request.META.get('QUERY_STRING', '')
+
     try:
-        applications = get_applications_for_page(page, state, rsvp_status, order)
+        applications = get_applications_for_page(
+            page, state, rsvp_status, order)
     except:
         return redirect('core:event', city=city)
 
@@ -90,32 +101,41 @@ def applications(request, city):
 @organiser_only
 def applications_csv(request, city):
     """
-    Download a csv of applications for this city, respecting filter and order parameters from url.
+    Download a csv of applications for this city, respecting filter and
+    order parameters from url.
     """
     state = request.GET.getlist('state', None)
     rsvp_status = request.GET.getlist('rsvp_status', None)
     page = get_event_page(city, request.user.is_authenticated(), False)
     order = request.GET.get('order', None)
     try:
-        applications = get_applications_for_page(page, state, rsvp_status, order).prefetch_related('answer_set')
+        applications = get_applications_for_page(
+            page, state, rsvp_status, order)
     except:
         return redirect('core:event', city=city)
-
     response = HttpResponse(content_type='text/csv')
-    response['Content-Disposition'] = u'attachment; filename="{}.csv"'.format(city)
+    response['Content-Disposition'] = (
+        u'attachment; filename="{}.csv"'.format(city)
+    )
     writer = csv.writer(response)
-    csv_header = ["Application Number", "Application State", "RSVP Status", "Average Score"]
-    question_titles = page.form_set.first().question_set.values_list('title', flat=True)
+    csv_header = ["Application Number", "Application State",
+                  "RSVP Status", "Average Score"]
+    question_set = page.form.question_set
+
+    question_titles = question_set.values_list('title', flat=True)
     csv_header.extend(map(striptags, question_titles))
     writer.writerow(csv_header)
-    question_ids = page.form_set.first().question_set.values_list('id', flat=True)
+    question_ids = question_set.values_list('id', flat=True)
     for app in applications:
-        score = app.average_score if app.is_scored_by_user(request.user) else '(hidden)'
+        score = app.average_score if app.is_scored_by_user(
+            request.user) else '(hidden)'
         app_info = [app.number, app.state, app.rsvp_status, score]
         # get all answers for the application
-        answer_dict = dict([(a.question_id, a.answer)for a in app.answer_set.all()])
+        answer_dict = dict([(a.question_id, a.answer)
+                            for a in app.answer_set.all()])
         # find the answer corresponding to a question or empty string if not found
-        # this keeps the csv columns correct if some applications have less questions than others
+        # this keeps the csv columns correct if some applications have less
+        # questions than others
         answers = [answer_dict.get(q_id, '') for q_id in question_ids]
         app_info.extend(answers)
         writer.writerow(app_info)
@@ -127,7 +147,9 @@ def application_detail(request, city, app_number):
     """
     Display the details of a single application.
     """
-    application = Application.objects.get(form__page__url=city, number=app_number)
+    application = get_object_or_404(Application, form__page__url=city,
+                                    number=app_number)
+
     try:
         score = Score.objects.get(
             user=request.user, application=application)
@@ -188,7 +210,8 @@ def compose_email(request, city, email_id=None):
     """
     page = get_event_page(city, request.user.is_authenticated(), False)
     form_obj = get_object_or_404(Form, page=page)
-    emailmsg = None if not email_id else get_object_or_404(Email, form__page=page, id=email_id)
+    emailmsg = None if not email_id else get_object_or_404(
+        Email, form__page=page, id=email_id)
 
     form = EmailForm(request.POST or None, instance=emailmsg, initial={
         'author': request.user, 'form': form_obj
@@ -224,13 +247,20 @@ def change_state(request, city):
     if not state or not applications:
         return JsonResponse({'error': 'Missing parameters'})
 
-    applications = Application.objects.filter(id__in=applications, form__page=page)
+    # cleanup applications so we don't put something unwated in the db
+    applications = [value for value in applications if value.isdigit()]
+
+    applications = Application.objects.filter(
+        id__in=applications, form__page=page)
     applications.update(state=state)
 
     ids = applications.values_list('id', flat=True)
     ids = [str(id) for id in ids]
 
-    return JsonResponse({'message': 'Applications have been updated', 'updated': ids})
+    return JsonResponse({
+        'message': 'Applications have been updated',
+        'updated': ids
+    })
 
 
 @organiser_only
@@ -247,13 +277,17 @@ def change_rsvp(request, city):
     if not rsvp_status or not applications:
         return JsonResponse({'error': 'Missing parameters'})
 
-    applications = Application.objects.filter(id__in=applications, form__page=page)
+    applications = Application.objects.filter(
+        id__in=applications, form__page=page)
     applications.update(rsvp_status=rsvp_status)
 
     ids = applications.values_list('id', flat=True)
     ids = [str(id) for id in ids]
 
-    return JsonResponse({'message': 'Applications have been updated', 'updated': ids})
+    return JsonResponse({
+        'message': 'Applications have been updated',
+        'updated': ids
+    })
 
 
 def rsvp(request, city, code):
@@ -270,18 +304,33 @@ def rsvp(request, city, code):
     if not application:
         return redirect('/{}/'.format(page.url))
 
+    if application.rsvp_status != RSVP_WAITING:
+        messages.error(
+            request,
+            "Something went wrong with your RSVP link. Please contact us at "
+            "{} with your name.".format(page.event.email)
+        )
+        return redirect('/{}/'.format(page.url))
+
     application.rsvp_status = rsvp
     application.save()
 
-    if rsvp == 'yes':
-        message = "Your answer has been saved, your participation in the workshop has been confirmed! We can't wait to meet you. We will be in touch with details soon."
+    if rsvp == RSVP_YES:
+        message = (
+            "Your participation in the workshop has been confirmed! "
+            "We can't wait to meet you. We will be in "
+            "touch with details soon."
+        )
     else:
-        message = "Your answer has been saved, thanks for letting us know. Your spot will be assigned to another person on the waiting list."
-    messages.success(request, message)
+        message = (
+            "Your answer has been saved, thanks for letting us know. Your "
+            "spot will be assigned to another person on the waiting list."
+        )
 
     menu = EventPageMenu.objects.filter(page=page)
 
-    return render(request, 'applications/apply.html', {
+    return render(request, 'applications/rsvp.html', {
         'page': page,
         'menu': menu,
+        'message': message
     })

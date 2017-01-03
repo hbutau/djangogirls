@@ -1,20 +1,27 @@
 from __future__ import unicode_literals
 
-import icalendar
-from smtplib import SMTPException
 from datetime import date, datetime, timedelta
+from smtplib import SMTPException
 
-from django.db import models
+import icalendar
 from django.contrib.auth import models as auth_models
-from django.utils import timezone
-from django.core.mail import send_mail
-from django.utils.encoding import python_2_unicode_compatible
+from django.contrib.staticfiles.templatetags.staticfiles import static
 from django.core.exceptions import ValidationError
-
+from django.core.mail import EmailMessage
+from django.core.urlresolvers import reverse
+from django.db import models
+from django.utils import timezone
+from django.utils.encoding import python_2_unicode_compatible
+from django.utils.safestring import mark_safe
 from django_date_extensions.fields import ApproximateDate, ApproximateDateField
+from easy_thumbnails.exceptions import InvalidImageFormatError
+from easy_thumbnails.files import get_thumbnailer
+
+DEFAULT_COACH_PHOTO = static('img/global/coach-empty.jpg')
 
 
 class UserManager(auth_models.BaseUserManager):
+
     def create_user(self, email, password=None):
         if not email:
             raise ValueError("Users must have an email address")
@@ -61,8 +68,10 @@ class User(auth_models.AbstractBaseUser, auth_models.PermissionsMixin):
 
 
 class EventManager(models.Manager):
+
     def get_queryset(self):
-        return super(EventManager, self).get_queryset().filter(is_deleted=False)
+        return (super(EventManager, self).get_queryset()
+                                         .filter(is_deleted=False))
 
     def public(self):
         """
@@ -71,33 +80,44 @@ class EventManager(models.Manager):
         return self.get_queryset().filter(is_on_homepage=True)
 
     def future(self):
-        return self.public().filter(date__gte=datetime.now().strftime("%Y-%m-%d")).order_by("date")
+        return self.public().filter(
+            date__gte=datetime.now().strftime("%Y-%m-%d")
+        ).order_by("date")
 
     def past(self):
-        return self.public().filter(date__isnull=False, date__lt=datetime.now().strftime("%Y-%m-%d")).order_by("-date")
+        return self.public().filter(
+            date__isnull=False,
+            date__lt=datetime.now().strftime("%Y-%m-%d")
+        ).order_by("-date")
 
 # Event date can't be a year only
+
+
 def validate_approximatedate(date):
     if date.month == 0:
-        raise ValidationError('Event date can\'t be a year only. Please, provide at least a month and a year.')
+        raise ValidationError(
+            'Event date can\'t be a year only. Please, provide at least a month and a year.')
 
 
 @python_2_unicode_compatible
 class Event(models.Model):
     name = models.CharField(max_length=200, null=False, blank=False)
-    date = ApproximateDateField(null=True, blank=False, validators=[validate_approximatedate])
+    date = ApproximateDateField(null=True, blank=False, validators=[
+                                validate_approximatedate])
     city = models.CharField(max_length=200, null=False, blank=False)
     country = models.CharField(max_length=200, null=False, blank=False)
     latlng = models.CharField(max_length=30, null=True, blank=True)
     photo = models.ImageField(upload_to="event/cities/", null=True, blank=True,
                               help_text="The best would be 356 x 210px")
-    photo_credit = models.CharField(max_length=200, null=True, blank=True)
+    photo_credit = models.CharField(max_length=200, null=True, blank=True, help_text=mark_safe("Only use pictures with a <a href='https://creativecommons.org/licenses/'>creative commons license</a>."))
     photo_link = models.URLField(null=True, blank=True)
     email = models.EmailField(max_length=75, null=True, blank=True)
-    main_organizer = models.ForeignKey(User, null=True, blank=True, related_name="main_organizer")
+    main_organizer = models.ForeignKey(
+        User, null=True, blank=True, related_name="main_organizer")
     team = models.ManyToManyField(User, blank=True)
     is_on_homepage = models.BooleanField(default=False)
     is_deleted = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
 
     objects = EventManager()
     all_objects = models.Manager()  # This includes deleted objects
@@ -106,6 +126,7 @@ class Event(models.Model):
         return self.name
 
     class Meta:
+        ordering = ('pk', )
         verbose_name_plural = "List of events"
 
     def is_upcoming(self):
@@ -138,7 +159,8 @@ class Event(models.Model):
         return event
 
     def organizers(self):
-        members = ["{} <{}>".format(x.get_full_name(), x.email) for x in self.team.all()]
+        members = ["{} <{}>".format(x.get_full_name(), x.email)
+                   for x in self.team.all()]
         return ", ".join(members)
 
     def delete(self):
@@ -147,6 +169,7 @@ class Event(models.Model):
 
 
 class EventPageManager(models.Manager):
+
     def get_queryset(self):
         return super(EventPageManager, self).get_queryset().filter(is_deleted=False)
 
@@ -155,11 +178,13 @@ class EventPageManager(models.Manager):
 class EventPage(models.Model):
     event = models.OneToOneField(Event, primary_key=True)
     title = models.CharField(max_length=200, null=True, blank=True)
-    description = models.TextField(null=True, blank=True,
-                                   default="Django Girls is a one-day workshop about programming "
-                                           "in Python and Django tailored for women.")
-    main_color = models.CharField(max_length=6, null=True, blank=True,
-                                  help_text="Main color of the chapter in HEX", default="FF9400")
+    description = models.TextField(
+        null=True, blank=True,
+        default="Django Girls is a one-day workshop about programming "
+                "in Python and Django tailored for women.")
+    main_color = models.CharField(
+        max_length=6, null=True, blank=True,
+        help_text="Main color of the chapter in HEX", default="FF9400")
     custom_css = models.TextField(null=True, blank=True)
     url = models.CharField(max_length=200, null=True, blank=True)
 
@@ -173,6 +198,7 @@ class EventPage(models.Model):
         return "Website for %s" % self.event.name
 
     class Meta:
+        ordering = ('title', )
         verbose_name = "Website"
 
     def delete(self):
@@ -193,11 +219,13 @@ class ContactEmail(models.Model):
     sent_to = models.EmailField(max_length=128)
     message = models.TextField()
     event = models.ForeignKey(
-        'core.Event', help_text='required for contacting a chapter', null=True, blank=True
+        'core.Event', help_text='required for contacting a chapter',
+        null=True, blank=True
     )
     contact_type = models.CharField(
         verbose_name="Who do you want to contact?",
-        max_length=20, choices=CONTACT_TYPE_CHOICES, blank=False, default=CHAPTER
+        max_length=20, choices=CONTACT_TYPE_CHOICES, blank=False,
+        default=CHAPTER
     )
     created_at = models.DateTimeField(auto_now_add=True)
     sent_successfully = models.BooleanField(default=True)
@@ -210,15 +238,17 @@ class ContactEmail(models.Model):
 
     def save(self, *args, **kwargs):
         self.sent_to = self._get_to_email()
-
+        email = EmailMessage(
+            self._get_subject(),
+            self.message,
+            "Django Girls Contact <hello@djangogirls.org>",
+            [self.sent_to],
+            reply_to=["{} <{}>".format(self.name, self.email)],
+            headers={'Reply-To': "{} <{}>".format(self.name, self.email)}
+            # Seems like this is needed for Mandrill
+        )
         try:
-            send_mail(
-                self._get_subject(),
-                self.message,
-                "{} <{}>".format(self.name, self.email),
-                [self.sent_to],
-                fail_silently=False,
-            )
+            email.send(fail_silently=False)
         except SMTPException:
             self.sent_successfully = False
 
@@ -235,13 +265,17 @@ class ContactEmail(models.Model):
 
 @python_2_unicode_compatible
 class EventPageContent(models.Model):
-    page = models.ForeignKey(EventPage, null=False, blank=False, related_name="content")
+    page = models.ForeignKey(EventPage, null=False,
+                             blank=False, related_name="content")
     name = models.CharField(null=False, blank=False, max_length=100)
-    content = models.TextField(null=False, blank=False, help_text="HTML allowed")
-    background = models.ImageField(upload_to="event/backgrounds/", null=True, blank=True,
-                                   help_text="Optional background photo")
+    content = models.TextField(
+        null=False, blank=False, help_text="HTML allowed")
+    background = models.ImageField(
+        upload_to="event/backgrounds/", null=True, blank=True,
+        help_text="Optional background photo")
     position = models.PositiveIntegerField(
-        null=False, blank=False, help_text="Position of the block on the website")
+        null=False, blank=False,
+        help_text="Position of the block on the website")
     is_public = models.BooleanField(null=False, blank=False, default=False)
     coaches = models.ManyToManyField("core.Coach", verbose_name='Coaches')
     sponsors = models.ManyToManyField("core.Sponsor", verbose_name='Sponsors')
@@ -254,14 +288,16 @@ class EventPageContent(models.Model):
         verbose_name = "Website Content"
 
 
-
 @python_2_unicode_compatible
 class EventPageMenu(models.Model):
-    page = models.ForeignKey(EventPage, null=False, blank=False, related_name="menu")
+    page = models.ForeignKey(EventPage, null=False,
+                             blank=False, related_name="menu")
     title = models.CharField(max_length=255, null=False, blank=False)
-    url = models.CharField(max_length=255, null=False, blank=False,
-                           help_text="http://djangogirls.org/city/<the value you enter here>")
-    position = models.PositiveIntegerField(null=False, blank=False, help_text="Order of menu")
+    url = models.CharField(
+        max_length=255, null=False, blank=False,
+        help_text="http://djangogirls.org/city/<the value you enter here>")
+    position = models.PositiveIntegerField(
+        null=False, blank=False, help_text="Order of menu")
 
     def __str__(self):
         return self.title
@@ -274,19 +310,17 @@ class EventPageMenu(models.Model):
 @python_2_unicode_compatible
 class Sponsor(models.Model):
     name = models.CharField(max_length=200, null=True, blank=True)
-    logo = models.ImageField(upload_to="event/sponsors/", null=True, blank=True,
-                             help_text="Make sure logo is not bigger than 200 pixels wide")
+    logo = models.ImageField(
+        upload_to="event/sponsors/", null=True, blank=True,
+        help_text="Make sure logo is not bigger than 200 pixels wide")
     url = models.URLField(null=True, blank=True)
     description = models.TextField(null=True, blank=True)
-
-    position = models.PositiveIntegerField(null=False, blank=False,
-                                           help_text="Position of the sponsor")
 
     def __str__(self):
         return self.name
 
     class Meta:
-        ordering = ("position", )
+        ordering = ("name", )
 
     def logo_display_for_admin(self):
         if self.logo:
@@ -300,26 +334,38 @@ class Sponsor(models.Model):
 @python_2_unicode_compatible
 class Coach(models.Model):
     name = models.CharField(max_length=200, null=False, blank=False)
-    twitter_handle = models.CharField(max_length=200, null=True, blank=True,
-                                      help_text="No @, No http://, just username")
-    photo = models.ImageField(upload_to="event/coaches/", null=True, blank=True,
-                              help_text="For best display keep it square")
+    twitter_handle = models.CharField(
+        max_length=200, null=True, blank=True,
+        help_text="No @, No http://, just username")
+    photo = models.ImageField(
+        upload_to="event/coaches/", null=True, blank=True,
+        help_text="For best display keep it square")
     url = models.URLField(null=True, blank=True)
 
     def __str__(self):
         return self.name
 
     class Meta:
-        ordering = ("?",)
+        ordering = ("name",)
         verbose_name_plural = "Coaches"
 
     def photo_display_for_admin(self):
-        if self.photo:
-            return "<a href=\"{}\" target=\"_blank\"><img src=\"{}\" width=\"100\" /></a>".format(
-                self.photo.url, self.photo.url)
-        else:
-            return "No image"
+        coach_change_url = reverse("admin:core_coach_change", args=[self.id])
+        return """
+            <a href=\"{}\" target=\"_blank\">
+                <img src=\"{}\" width=\"100\" />
+            </a>""".format(coach_change_url, self.photo_url)
     photo_display_for_admin.allow_tags = True
+
+    @property
+    def photo_url(self):
+        if self.photo:
+            try:
+                return get_thumbnailer(self.photo)['coach'].url
+            except InvalidImageFormatError:
+                return DEFAULT_COACH_PHOTO
+
+        return DEFAULT_COACH_PHOTO
 
 
 @python_2_unicode_compatible
@@ -340,6 +386,10 @@ class Postmortem(models.Model):
     comments = models.TextField(null=True, blank=True,
                                 verbose_name="Anything else you want to share with us?")
 
+    class Meta:
+        verbose_name = "Statistics"
+        verbose_name_plural = "Statistics"
+
     def __str__(self):
         return self.event.city
 
@@ -351,7 +401,8 @@ class Story(models.Model):
     post_url = models.URLField(null=False, blank=False)
     image = models.ImageField(upload_to="stories/", null=True)
     created = models.DateField(auto_now_add=True, null=False, blank=False)
-    is_story = models.BooleanField(default=True)  # False means a regular blogpost, not a story
+    # False means a regular blogpost, not a story
+    is_story = models.BooleanField(default=True)
 
     def __str__(self):
         return self.name

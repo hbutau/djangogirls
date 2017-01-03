@@ -1,8 +1,8 @@
 {% extends 'global/base.html' %}
-{% load staticfiles %}
+{% load staticfiles rev %}
 
 {% block extra_js %}
-    <script type="text/javascript" src="{% static 'js/global.js' %}?refresh_js=1"></script>
+    <script type="text/javascript" src="{% static_rev 'js/global.js' %}"></script>
 {% endblock %}
 
 {% block content %}
@@ -30,7 +30,7 @@
                 <div class="col-md-6">
                     <h2>What is Django Girls?</h2>
                     <p>
-                        Django Girls is a <a href="{% url 'core:foundation' %}">non-profit organization</a> and a community that empowers and helps women to organize free, one-day programming workshops by providing tools, resources and support. We are a volunteer run organization with hundreds of people contributing to bring more amazing women into the world of technology. We are making technology more approachable by creating simpler tools and resources designed with empathy.
+                        Django Girls is a <a href="{% url 'core:foundation' %}">non-profit organization</a> and a community that empowers and helps women to organize free, one-day programming workshops by providing tools, resources and support. We are a volunteer run organization with hundreds of people contributing to bring more amazing women into the world of technology. We are making technology more approachable by creating resources designed with empathy.
                     </p>
                     <p>
                         During each of our events, 30-60 women build their first web application using HTML, CSS, Python and Django.
@@ -124,7 +124,8 @@
                     </div>
                     <a class="btn" href="http://patreon.com/djangogirls">Make a recurring donation on Patreon</a>
                     <p class="partnership">
-                        Or if you would like to discuss a bigger partnership, <a href="{% url 'core:contact' %}">please get in touch</a>.
+                        You can also send us a one <a href="{% url 'core:donate' %}">time donation</a>.
+                        If you would like to discuss a bigger partnership, <a href="{% url 'core:contact' %}">please get in touch</a>.
                     </p>
                 </div>
 
@@ -133,18 +134,50 @@
                     <p>
                         Subscribe to Django Girls Dispatch to receive the latest and greatest from our community every two weeks, straight to your inbox!
                     </p>
-                    <p>
-                      <form action="http://test2975.createsend.com/t/i/s/tykhhd/" method="post" id="subForm" class="newsletter">
-                          <input id="fieldEmail" name="cm-tykhhd-tykhhd" type="email" placeholder="you@reaweso.me" required />
-                          <input type="submit" value="Subscribe" />
-                      </form>
-                    </p>
+                     <div id="mc_embed_signup">
+                     <form action="//djangogirls.us8.list-manage.com/subscribe/post?u=5a007b2dabdeddc350bdbbaed&amp;id=d278270e6f" method="post" id="mc-embedded-subscribe-form" name="mc-embedded-subscribe-form" class="validate" target="_blank" novalidate>
+                         <div id="mc_embed_signup_scroll">
+                             <input type="email" value="" name="EMAIL" class="email" id="mce-EMAIL" placeholder="email address" required>
+                             <!-- real people should not fill this in and expect good things - do not remove this or risk form bot signups-->
+                             <div style="position: absolute; left: -5000px;" aria-hidden="true"><input type="text" name="b_5a007b2dabdeddc350bdbbaed_d278270e6f" tabindex="-1" value=""></div>
+                             <input type="submit" value="Subscribe" name="subscribe" id="mc-embedded-subscribe" class="button">
+                         </div>
+                     </form>
+                 </div>
+
                     <p>
                         <a href="{% url 'core:newsletter' %}">See the Django Girls Dispatch archives »</a>
                     </p>
                 </div>
             </div>
-        </section>
+
+            <div class="row">
+                <div class="col-md-12">
+                    <h2>Buy a t-shirt!</h2>
+                </div>
+                <div class="col-md-6">
+                    <p>
+                        Help us spread the word about Django Girls while supporting us!
+                    </p>
+                    <p>We now have three awesome designs for fitted and straight-cut t-shirts: <a href="https://store.djangogirls.org/collections/frontpage/products/this-is-what-a-programmer-looks-like">"This is What a Programmer Looks Like"</a>, <a href="https://store.djangogirls.org/collections/frontpage/products/fitted-code-like-a-girl-t-shirt">"Code like a Girl"</a> and <a href="https://store.djangogirls.org/collections/frontpage/products/fitted-django-girls-t-shirt"> Django Girls logo</a>.</p>
+                    <p>
+                         All proceeds will go to two new projects:
+                        <ul>
+                    <li>Django Girls Summit: a two day unconference where organizers could meet and share their experiences about Django Girls workshops.</li>
+                    <li>Django Girls Organizer Starter Kit: a swag boxes for organizers full of stickers, buttons and tattoos!</li>
+                        </ul>
+                    </p>
+
+                    <p><a href="https://store.djangogirls.org/" class="btn">Get your t-shirt today!</a></p>
+
+                </div>
+                <div class="col-md-6">
+                    <a href="https://store.djangogirls.org/">
+                        <img src="{% static 'img/global/tshirt.png' %}" alt="Mint 'Code like a Girl' and cranberry 'This is what a programmer looks like' t-shirts."/>
+                    </a>
+                </div>
+            </div>
+            </section>
 
         <section id="supporters">
             <div class="row">
@@ -154,37 +187,7 @@
                 </div>
             </div>
 
-            <div class="row">
-              <div class="col-md-3">
-                  <a href="https://www.elastic.co/">
-                      <img src="{% static 'img/global/supporters/elastic.png' %}" alt="Elastic" />
-                  </a>
-              </div>
-                <div class="col-md-3">
-                    <a href="http://lincolnloop.com/">
-                        <img src="{% static 'img/global/supporters/lincolnloop.png' %}" alt="Lincoln Loop" />
-                    </a>
-                </div>
-                <div class="col-md-3">
-                    <a href="http://www.divio.ch/en/">
-                        <img src="{% static 'img/global/supporters/divio.png' %}" alt="Divio" style="margin-top: 25px" />
-                    </a>
-                </div>
-                <div class="col-md-3">
-                    <a href="http://pythonanywhere.com/">
-                        <img src="{% static 'img/global/supporters/pythonanywhere.png' %}" alt="Python Anywhere" style="margin-top: 25px" />
-                    </a>
-                </div>
-            </div>
-
-            <div class="row">
-
-                <div class="col-md-3">
-                    <a href="https://www.mandrill.com/">
-                        <img src="{% static 'img/global/supporters/mandrill.png' %}" alt="Mandrill" style="margin-top: 0px" />
-                    </a>
-                </div>
-            </div>
+            {% include 'includes/_main_sponsors.html' %}
 
         </section>
 

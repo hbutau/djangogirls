@@ -1,15 +1,17 @@
 import icalendar
-
 from django.conf import settings
-from django.http import HttpResponse
 from django.contrib import messages
-from django.shortcuts import get_object_or_404, render, redirect
+from django.contrib.auth.decorators import login_required
+from django.http import HttpResponse
+from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django_date_extensions.fields import ApproximateDate
 
-from .models import Event, EventPage, Story, ContactEmail, User
-from .forms import ContactForm
+from core.utils import next_deadline
 from patreonmanager.models import FundraisingStatus
+
+from .forms import ContactForm
+from .models import Event, EventPage, Story, User
 
 
 def index(request):
@@ -122,7 +124,8 @@ def contact(request):
                     messages.ERROR,
                     "Ooops. We couldn't send your email :( Please try again later"
                 )
-            return render(request, 'core/contact.html', {'form': ContactForm()})
+            return render(request, 'core/contact.html',
+                          {'form': ContactForm()})
     else:
         form = ContactForm()
     return render(request, 'core/contact.html', {'form': form})
@@ -140,8 +143,32 @@ def contribute(request):
     return render(request, 'core/contribute.html', {})
 
 
+def donate(request):
+    return render(request, 'core/donate.html', {
+        'patreon_stats': FundraisingStatus.objects.all().first(),
+    })
+
+
 def year_2015(request):
     return render(request, 'core/2015.html', {
         'events': Event.objects.public().filter(date__lt='2016-01-01').order_by('date'),
         'mapbox_map_id': settings.MAPBOX_MAP_ID,
+    })
+
+
+def terms_conditions(request):
+    return render(request, 'core/terms_conditions.html', {})
+
+
+def privacy_cookies(request):
+    return render(request, 'core/privacy_cookies.html', {})
+
+
+def workshop_box(request):
+    return render(request, 'core/workshop_box.html', {})
+
+@login_required
+def sponsor_request(request):
+    return render(request, 'event/sponsor-request.html', {
+        'deadline': next_deadline()
     })

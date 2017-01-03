@@ -1,19 +1,18 @@
 import os
 from datetime import timedelta
+
 from django.core import mail
-from django.test import TestCase, RequestFactory
-from django.test.client import Client
 from django.core.urlresolvers import reverse
+from django.test import RequestFactory, TestCase
+from django.test.client import Client
 from django.utils import timezone
 from django_date_extensions.fields import ApproximateDate
 
-from core.models import User, Event, EventPage, ContactEmail
-from core.views import event
-from core.forms import ContactForm
+from core.models import ContactEmail, Event, EventPage, User
+from core.views import event as event_view
 
 
-class CoreViewsTestCase(TestCase):
-
+class BaseCoreTestCase(TestCase):
     fixtures = ['core_views_testdata.json']
 
     def setUp(self):
@@ -28,6 +27,10 @@ class CoreViewsTestCase(TestCase):
         self.event_2 = Event.objects.get(pk=2)  # In the past
         self.event_3 = Event.objects.get(pk=3)  # Hidden from homepage
         self.event_4 = Event.objects.get(pk=4)  # Not live, no date set
+        self.events = [self.event_1, self.event_2, self.event_3, self.event_4]
+
+
+class CoreViewsTestCase(BaseCoreTestCase):
 
     def test_index(self):
         # Access homepage
@@ -38,11 +41,14 @@ class CoreViewsTestCase(TestCase):
         self.assertTrue('past_events' and 'future_events' in resp.context)
 
         # Is future event on future list?
-        self.assertEqual([event.pk for event in resp.context['future_events']], [1])
-        self.assertNotEqual([event.pk for event in resp.context['future_events']], [2])
+        self.assertEqual(
+            [event.pk for event in resp.context['future_events']], [1])
+        self.assertNotEqual(
+            [event.pk for event in resp.context['future_events']], [2])
 
         # Is hidden event on the list?
-        self.assertNotEqual([event.pk for event in resp.context['future_events']], [3])
+        self.assertNotEqual(
+            [event.pk for event in resp.context['future_events']], [3])
 
     def test_event_published(self):
         event_page_1 = EventPage.objects.get(event=self.event_1)
@@ -63,7 +69,8 @@ class CoreViewsTestCase(TestCase):
         self.assertTrue('page' and 'menu' and 'content' in resp_2.context)
 
         # Check if not public content is not available in context:
-        self.assertNotEqual([content.pk for content in resp_1.context['content']], [1])
+        self.assertNotEqual(
+            [content.pk for content in resp_1.context['content']], [1])
 
     def test_event_unpublished(self):
         event_page_3 = EventPage.objects.get(event=self.event_3)
@@ -92,7 +99,8 @@ class CoreViewsTestCase(TestCase):
         self.assertEqual(resp.status_code, 200)
 
         # Check if website is returning correct content
-        self.assertIn('will be coming soon', str(resp.content), 'Incorrect content')
+        self.assertIn('will be coming soon', str(
+            resp.content), 'Incorrect content')
 
         # make the event date in the past
         self.event_4.date = ApproximateDate(
@@ -105,7 +113,8 @@ class CoreViewsTestCase(TestCase):
         self.assertEqual(resp.status_code, 200)
 
         # Check if website is returning correct content
-        self.assertIn('has already happened', str(resp.content), 'Incorrect content')
+        self.assertIn('has already happened', str(
+            resp.content), 'Incorrect content')
 
     def test_event_unpublished_with_authenticated_user(self):
         """ Test that an unpublished page can be accessed when the user is
@@ -119,7 +128,7 @@ class CoreViewsTestCase(TestCase):
         request.user = self.ola
 
         # Check if the unpublished page can be accessed
-        resp = event(request, event_page_3.url)
+        resp = event_view(request, event_page_3.url)
         self.assertEqual(resp.status_code, 200)
         # Check if website is returning correct data
         self.assertIn(event_page_3.title, resp.content.decode('utf-8'))
@@ -133,7 +142,6 @@ class ContactTestCase(TestCase):
 
     def tearDown(self):
         del os.environ['RECAPTCHA_TESTING']
-
 
     def test_contact_page_loads(self):
         url = reverse('core:contact')
@@ -155,7 +163,7 @@ class ContactTestCase(TestCase):
         email = mail.outbox[0]
 
         self.assertEqual(email.to, ['hello@djangogirls.org'])
-        self.assertEqual(email.from_email, 'test name <lord@dracula.trans>')
+        self.assertEqual(email.reply_to, ['test name <lord@dracula.trans>'])
         self.assertEqual(email.body, 'nice message')
 
     def test_form_sends_email_to_chapter(self):
@@ -178,7 +186,7 @@ class ContactTestCase(TestCase):
         email = mail.outbox[0]
 
         self.assertEqual(email.to, ['test@test.com'])
-        self.assertEqual(email.from_email, 'test name <lord@dracula.trans>')
+        self.assertEqual(email.reply_to, ['test name <lord@dracula.trans>'])
         self.assertEqual(email.body, 'nice message')
 
     def test_chapter_contact_requires_event(self):

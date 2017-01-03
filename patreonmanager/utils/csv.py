@@ -1,24 +1,27 @@
+import re
 from collections import defaultdict, namedtuple
-import csv
 from datetime import datetime
 from decimal import Decimal
 from os import path
-import re
 
 from django.utils import timezone
-
 
 CSV_FILENAME_FORMAT = '%Y-%m-Patreon.csv'
 
 
 BasePatron = namedtuple('BasePatron', [
-    'name',
+    'first_name',
+    'last_name',
     'email',
     'pledge_raw',
     'lifetime_raw',
     'status',
     'twitter',
-    'shipping',
+    'street',
+    'city',
+    'state',
+    'zip',
+    'country',
     'start_raw',
     'max_amount',
     'complete_raw',
@@ -32,7 +35,8 @@ class Patron(BasePatron):
     def start(self):
         if not self.start_raw:
             return None
-        return datetime.strptime(self.start_raw, '%Y-%m-%d %H:%M:%S').replace(tzinfo=timezone.utc)
+        return (datetime.strptime(self.start_raw, '%Y-%m-%d %H:%M:%S')
+                        .replace(tzinfo=timezone.utc))
 
     @property
     def pledge(self):
@@ -46,12 +50,23 @@ class Patron(BasePatron):
     def completed(self):
         return self.complete_raw == '1'
 
+    @property
+    def name(self):
+        return '{p.first_name} {p.last_name}'.format(p=self).strip()
+
+    @property
+    def shipping(self):
+        return ('{p.street}\n{p.zip} {p.state}\n{p.country}'
+                .format(p=self)
+                .strip())
+
 
 class Reward(BaseReward):
     @property
     def value(self):
         """
-        Convert the reward's name (like '5.00+ Reward') to its numerical value (5.00).
+        Convert the reward's name (like '5.00+ Reward') to its numerical value
+        (5.00).
         """
         match = re.search('^(?P<value>.+) Reward$', self.name)
         assert match is not None
@@ -64,7 +79,8 @@ class Reward(BaseReward):
 
     @property
     def description(self):
-        match = re.search('^Description: (?P<description>.+)$', self.description_raw)
+        match = re.search('^Description: (?P<description>.+)$',
+                          self.description_raw)
         assert match is not None
         return match.group('description')
 

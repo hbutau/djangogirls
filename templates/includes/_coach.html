@@ -6,9 +6,7 @@
 <span>
 {% endif %}
 
-{% if coach.photo %}
-    <img src="{{ coach.photo|thumbnail_url:'coach' }}" alt="{{ coach.name }}" class="coach" />
-{% endif %}
+<img src="{{ coach.photo_url }}" class="coach" />
 
 {% if coach.url %}
 </a>

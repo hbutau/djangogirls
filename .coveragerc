@@ -1,6 +1,8 @@
 [run]
-source = 
-	applications/
-omit = 
-    */migrations*
-    */admin.py
+source = .
+branch = True
+omit =
+    **/migrations/*
+	**/tests/*
+    djangogirls/wsgi.py
+    manage.py

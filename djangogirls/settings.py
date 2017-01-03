@@ -1,4 +1,5 @@
 import os
+
 import dj_database_url
 
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
@@ -29,19 +30,16 @@ INSTALLED_APPS = (
     'django.contrib.sites',
     'django.contrib.flatpages',
 
-    'raven.contrib.django.raven_compat',
     'django_date_extensions',
     'storages',
     'markdown_deux',
     'djrill',
-    'django_nose',
     'easy_thumbnails',
     'captcha',
-
     'django_countries',
     'bootstrap3_datetime',
-
     'ckeditor',
+    'gulp_rev',
 
     'core',
     'applications',
@@ -119,22 +117,29 @@ SUIT_CONFIG = {
     'ADMIN_NAME': 'Django Girls',
     'SEARCH_URL': '/admin/core/event/',
     'MENU': (
-        {'label': 'Users & Groups', 'icon':'icon-user', 'models': ('core.user', 'auth.group')},
+        {'label': 'Users & Groups', 'icon':'icon-user', 'models': ('core.user', 'auth.group'),
+            'permissions': ('auth.add_user', 'auth.add_group')
+        },
         {'label': 'Events', 'icon':'icon-star', 'models': (
             'core.event', 'core.eventpage', 'core.eventpagecontent',
             'core.eventpagemenu', 'core.postmortem',
         )},
+        {'label': 'Organizers', 'icon':'icon-eye-open', 'models': (
+            {'url': '/admin/core/event/add_organizers/', 'label': 'Add organizers'},
+            {'url': '/admin/core/event/manage_organizers/', 'label': 'Remove organizers'},
+        )},
         {'label': 'Application Form', 'app': 'applications', 'icon':'icon-tasks'},
         {'label': 'Submitted Applications', 'url': '/admin/applications/form/submissions/', 'icon':'icon-user'},
         {'app': 'flatpages', 'icon':'icon-file'},
-        {'label': 'Blog & Django Stories', 'icon':'icon-comment', 'models': ('core.Story',)},
+        {'label': 'Blog & Django Stories', 'icon':'icon-comment', 'models': ('core.Story',),
+            'permissions': ('core.add_story',)
+        },
         {'app': 'jobs', 'icon':'icon-briefcase'},
         {'app': 'patreonmanager', 'icon':'icon-gift', 'models': ('patron', 'payment', 'reward')},
-        {'label': 'Organizer\'s Manual', 'icon':'icon-bookmark', 'url': 'http://organize.djangogirls.org/'},
-        {'label': 'Organizer\'s FAQ', 'icon':'icon-bookmark', 'url': 'http://organize.djangogirls.org/faq/'},
+        {'label': 'Organizer\'s Manual', 'icon':'icon-bookmark', 'url': 'https://organize.djangogirls.org/'},
+        {'label': 'Organizer\'s FAQ', 'icon':'icon-bookmark', 'url': 'https://faq-organizers.djangogirls.org/'},
         {'label': 'Organizer\'s Google Group', 'icon':'icon-bookmark', 'url': 'https://groups.google.com/forum/#!forum/django-girls-organizers'},
         {'label': 'Organizer\'s Slack', 'icon':'icon-bookmark', 'url': 'https://djangogirls.slack.com/'},
-        {'label': 'Support', 'icon':'icon-question-sign', 'url': 'https://groups.google.com/forum/#!forum/django-girls-organizers'},
     )
 }
 
@@ -150,8 +155,17 @@ STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 MEDIA_URL = '/uploads/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'uploads')
+DJANGO_GULP_REV_PATH = os.path.join(BASE_DIR, 'static/rev-manifest.json')
+LOGIN_URL = 'admin:login'
 
-STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
+if 'TRAVIS' in os.environ:
+    STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static/source')]
+elif DEBUG:
+    STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static/local')]
+else:
+    STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static/build')]
+
+
 STATICFILES_FINDERS = (
     'django.contrib.staticfiles.finders.FileSystemFinder',
     'django.contrib.staticfiles.finders.AppDirectoriesFinder'
@@ -160,6 +174,8 @@ STATICFILES_FINDERS = (
 RAVEN_CONFIG = {
     'dsn': os.environ.get('SENTRY_DSN')
 }
+
+MAILCHIMP_API_KEY = os.environ.get('MAILCHIMP_APIKEY')
 
 MANDRILL_API_KEY = os.environ.get('MANDRILL_APIKEY')
 EMAIL_BACKEND = os.environ.get("EMAIL_BACKEND",
@@ -173,12 +189,18 @@ RECAPTCHA_PRIVATE_KEY = os.environ.get('RECAPTCHA_PRIVATE_KEY')
 # Using new No Captcha reCaptcha with SSL
 NOCAPTCHA = True
 
-TEST_RUNNER = 'django_nose.NoseTestSuiteRunner'
-NOSE_ARGS = [
-    '--with-coverage',
-    '--cover-package=core,applications,jobs',
-    '--with-progressive',
-]
+STORE_DISCOUNT_CODE = os.environ.get('STORE_DISCOUNT_CODE')
+
+TRELLO_API_KEY = os.environ.get('TRELLO_API_KEY')
+
+NOSE_ARGS = []
+
+# Optionally enable coverage reporting
+if os.environ.get('COVERAGE') == 'TRUE':
+    NOSE_ARGS += [
+        '--with-coverage',
+        '--cover-package=core,applications,jobs,patreonmanager',
+    ]
 
 MARKDOWN_DEUX_STYLES = {
     "default": {

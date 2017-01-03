@@ -3,15 +3,13 @@ Download your monthly patron reports from Patreon (CSV).
 
 Requires requests and lxml.
 """
-from datetime import datetime
 import logging
-from os import path
 import re
+from datetime import datetime
 from urllib.parse import parse_qs, urlparse
 
-from lxml import html
 import requests
-
+from lxml import html
 
 LOGIN_URL = 'https://api.patreon.com/login'
 
@@ -35,7 +33,9 @@ def login(email, password):
     """
     logging.info("Attempting login with email %r...", email)
     session = requests.session()
-    response = session.post(LOGIN_URL, json={"data": {"email": email, "password": password}})
+    response = session.post(
+        LOGIN_URL,
+        json={"data": {"email": email, "password": password}})
     assert response.status_code == 200
     logging.info("Login successful!")
     # TODO: handle bad username/password
@@ -83,7 +83,7 @@ def _get_hid_from_url(url):
     """
     parsed_url = urlparse(url)
     parsed_query = parse_qs(parsed_url.query)
-    return parsed_query['hid']
+    return parsed_query.get('hid')
 
 
 def _get_datetime_from_title(title):

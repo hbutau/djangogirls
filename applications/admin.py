@@ -1,20 +1,20 @@
+from django.conf.urls import url
 from django.contrib import admin
-from django.template import RequestContext
-from django.conf.urls import patterns
-from django.shortcuts import render, redirect
-from django.utils.html import format_html
 from django.core.urlresolvers import reverse
-
+from django.shortcuts import redirect, render
+from django.utils.html import format_html
 from suit.admin import SortableModelAdmin
 
-from .models import Form, Question, Application, Answer, Email
 from core.models import EventPage
+
+from .models import Answer, Application, Email, Form, Question
 
 
 class FormAdmin(admin.ModelAdmin):
     list_display = (
         'text_header', 'page', 'text_description',
-        'open_from', 'open_until', 'number_of_applications', 'get_submissions_url')
+        'open_from', 'open_until', 'number_of_applications',
+        'get_submissions_url')
 
     def get_queryset(self, request):
         qs = super(FormAdmin, self).get_queryset(request)
@@ -31,9 +31,10 @@ class FormAdmin(admin.ModelAdmin):
 
     def get_urls(self):
         urls = super(FormAdmin, self).get_urls()
-        my_urls = patterns('',
-            (r'submissions/$', self.admin_site.admin_view(self.view_submissions)),
-        )
+        my_urls = [
+            url(r'submissions/$',
+                self.admin_site.admin_view(self.view_submissions)),
+        ]
         return my_urls + urls
 
     def view_submissions(self, request):
@@ -47,7 +48,8 @@ class FormAdmin(admin.ModelAdmin):
         })
 
     def get_submissions_url(self, obj):
-        return format_html('<a href="{}" target="_blank">See all submitted applications</a>',
+        return format_html(
+            '<a href="{}" target="_blank">See all submitted applications</a>',
             reverse('applications:applications', args=[obj.page.url]))
     get_submissions_url.short_description = "Applications"
 
@@ -71,9 +73,17 @@ class QuestionAdmin(SortableModelAdmin):
         return form
 
 
+class AnswerInlineAdmin(admin.TabularInline):
+    model = Answer
+    can_delete = False
+    extra = 0
+    readonly_fields = ('question', 'answer')
+
+
 class ApplicationAdmin(admin.ModelAdmin):
     list_display = ('number', 'form', 'newsletter_optin', 'email', 'created')
     list_filter = ('form',  'newsletter_optin')
+    inlines = [AnswerInlineAdmin]
 
 
 class AnswerAdmin(admin.ModelAdmin):
@@ -82,7 +92,8 @@ class AnswerAdmin(admin.ModelAdmin):
 
 
 class EmailAdmin(admin.ModelAdmin):
-    list_display = ('form', 'author', 'subject', 'recipients_group', 'created', 'sent')
+    list_display = ('form', 'author', 'subject', 'recipients_group', 'created',
+                    'sent')
 
 
 admin.site.register(Form, FormAdmin)

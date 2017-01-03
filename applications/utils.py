@@ -70,13 +70,14 @@ def get_applications_for_page(page, state=None, rsvp_status=None, order=None):
     Return a QuerySet of Application objects for a given page.
     Raises Form.DoesNotExist if Form for page does not yet exist.
     """
-    from applications.models import Form  # circular import
-    page_form = Form.objects.filter(page=page)
-    if not page_form.exists():
-        raise Form.DoesNotExist
-    page_form = page_form.first()
+    from applications.models import Application  # circular import
 
-    applications = page_form.application_set.all().order_by('id')
+    applications = (
+        Application.objects
+        .filter(form__page=page)
+        .order_by('id')
+        .prefetch_related('answer_set')
+    )
 
     if rsvp_status:
         applications = applications.filter(
@@ -188,6 +189,19 @@ DEFAULT_QUESTIONS = [
         "question_type": "choices",
         "choices": "Facebook; Twitter; From a friend; PyLadies",
         "is_required": False,
+        "is_multiple_choice": True,
+    },
+    {
+        "title": "I acknowledge that some of my data will be used on Third Party Sites and Service.",
+        "help_text": "Data collected through this form is used only for the "
+        "purpose of Django Girls events. We're using Third Party Sites "
+        "and Services to make it happen: for example, we're using "
+        "Mandrill to send you emails. Don't worry: We don't share your data with spammers, "
+        "and we don't sell it! More info on our Privacy policy "
+        "<a href='/privacy-cookies/'>here</a>.",
+        "question_type": "choices",
+        "choices": "Yes",
+        "is_required": True,
         "is_multiple_choice": True,
     },
     {

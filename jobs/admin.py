@@ -1,16 +1,16 @@
-from django.db import models
+from django.conf.urls import url
 from django.contrib import admin, messages
-from django.template.loader import get_template
-from django.template import Context
-from django.conf.urls import patterns, url
-from django.shortcuts import redirect, get_object_or_404
+from django.core.urlresolvers import reverse
+from django.db import models
 from django.http import HttpResponseBadRequest
+from django.shortcuts import get_object_or_404, redirect
+from django.template import Context
+from django.template.loader import get_template
+from suit.widgets import (AutosizedTextarea, SuitDateWidget,
+                          SuitSplitDateTimeWidget)
 
-from suit.widgets import (
-    SuitDateWidget, SuitSplitDateTimeWidget, AutosizedTextarea)
-
-from jobs.models import PublishFlowModel, Job, Meetup
 from jobs.community_mails import send_job_mail
+from jobs.models import Job, Meetup, PublishFlowModel
 
 
 def make_published(modeladmin, request, queryset):
@@ -115,7 +115,7 @@ class PublishFlowModelAdmin(admin.ModelAdmin):
                 messages.INFO,
                 '{0} is now assigned.'.format(post.title)
             )
-            return redirect('/admin/jobs/%s/%s/' % (self.get_print_name(), id))
+            return redirect(reverse('admin:jobs_%s_change' % self.get_print_name(), args=(id,)))
         except AssertionError:
             return HttpResponseBadRequest(
                 "It's not possible to assign reviewer: post is in a wrong state."
@@ -130,7 +130,7 @@ class PublishFlowModelAdmin(admin.ModelAdmin):
                 messages.INFO,
                 '{0} is now unassigned.'.format(post.title)
             )
-            return redirect('/admin/jobs/%s/%s/' % (self.get_print_name(), id))
+            return redirect(reverse('admin:jobs_%s_change' % self.get_print_name(), args=(id,)))
         except AssertionError:
             return HttpResponseBadRequest(
                 "It's not possible to unassign reviewer: post is in a wrong state."
@@ -145,7 +145,7 @@ class PublishFlowModelAdmin(admin.ModelAdmin):
                 messages.INFO,
                 '{0} is now accepted.'.format(post.title)
             )
-            return redirect('/admin/jobs/%s/%s/' % (self.get_print_name(), id))
+            return redirect(reverse('admin:jobs_%s_change' % self.get_print_name(), args=(id,)))
         except AssertionError:
             return HttpResponseBadRequest(
                 "It's not possible to accept post: post is in a wrong state."
@@ -162,7 +162,7 @@ class PublishFlowModelAdmin(admin.ModelAdmin):
                     post.title
                 )
             )
-            return redirect('/admin/jobs/%s/%s/' % (self.get_print_name(), id))
+            return redirect(reverse('admin:jobs_%s_change' % self.get_print_name(), args=(id,)))
         except AssertionError:
             return HttpResponseBadRequest(
                 "It's not possible to reject reviewer: post is in a wrong state."
@@ -177,7 +177,7 @@ class PublishFlowModelAdmin(admin.ModelAdmin):
                 messages.INFO,
                 '{0} is now restored.'.format(post.title)
             )
-            return redirect('/admin/jobs/%s/%s/' % (self.get_print_name(), id))
+            return redirect(reverse('admin:jobs_%s_change' % self.get_print_name(), args=(id,)))
         except AssertionError:
             return HttpResponseBadRequest(
                 "It's not possible to restore post: post is in a wrong state."
@@ -194,7 +194,7 @@ class PublishFlowModelAdmin(admin.ModelAdmin):
                     post.title
                 )
             )
-            return redirect('/admin/jobs/%s/%s/' % (self.get_print_name(), id))
+            return redirect(reverse('admin:jobs_%s_change' % self.get_print_name(), args=(id,)))
         except AssertionError:
             return HttpResponseBadRequest(
                 "It's not possible to publish post: post is in a wrong state."
@@ -203,12 +203,18 @@ class PublishFlowModelAdmin(admin.ModelAdmin):
 
 class JobAdmin(PublishFlowModelAdmin):
     fieldsets = (
-        ('Job info', {'fields': ('title', 'company', 'website', 'contact_email',
-                           ('cities', 'country'), 'state_province', 'description', 'remote_work',
-                           'relocation')}),
-        ('Flow info', {'fields': ('review_status', 'message_to_organisation',
-                                  'internal_comment', 'expiration_date',
-                                  'reviewer', 'published_date')}),
+        ('Job info',
+            {'fields':
+                 ('title', 'company', 'website', 'contact_email', ('cities', 'country'),
+                  'state_province', 'description', 'remote_work', 'relocation')
+            }
+         ),
+        ('Flow info',
+            {'fields':
+                 ('review_status', 'message_to_organisation', 'internal_comment',
+                  'expiration_date', 'reviewer', 'published_date')
+            }
+         ),
     )
     readonly_fields = ('review_status', 'reviewer', 'published_date')
     list_display = ['title', 'company', 'reviewer', 'review_status', 'not_expired']
@@ -223,14 +229,20 @@ class JobAdmin(PublishFlowModelAdmin):
 
 class MeetupAdmin(PublishFlowModelAdmin):
     fieldsets = (
-        ('Meetup info', {'fields': ('title', 'organisation', 'website',
-                                    'contact_email', ('city', 'country'),
-                                    'state_province', 'meetup_type', 'description', 'is_recurring',
-                                    'recurrence', 'meetup_start_date',
-                                    'meetup_end_date')}),
-        ('Flow info', {'fields': ('review_status', 'message_to_organisation',
-                                  'internal_comment', 'expiration_date',
-                                  'reviewer', 'published_date')}),
+        ('Meetup info',
+            {'fields':
+                 ('title', 'organisation', 'website', 'contact_email',
+                  ('city', 'country'), 'state_province', 'meetup_type',
+                  'description', 'is_recurring', 'recurrence', 'meetup_start_date',
+                  'meetup_end_date')
+             }
+         ),
+        ('Flow info',
+            {'fields':
+                 ('review_status', 'message_to_organisation', 'internal_comment',
+                  'expiration_date', 'reviewer', 'published_date')
+             }
+         ),
     )
     readonly_fields = ('review_status', 'reviewer', 'published_date')
     list_display = ['title', 'city', 'reviewer', 'review_status', 'not_expired']
@@ -239,7 +251,8 @@ class MeetupAdmin(PublishFlowModelAdmin):
     actions = [make_published, send_status_update]
     formfield_overrides = {
         models.DateField: {'widget': SuitDateWidget},
-        models.DateTimeField: {'widget': SuitSplitDateTimeWidget},
+        # This causes the problem with Django (Ticket #26449) and should be commented out until it's fixed
+        # models.DateTimeField: {'widget': SuitSplitDateTimeWidget},
         models.TextField: {'widget': AutosizedTextarea},
     }
 
